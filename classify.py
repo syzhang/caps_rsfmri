@@ -47,13 +47,41 @@ def reg_cv(X, y, svc=False):
     print(f'mean accuracy={mean_score:.3f}')
     return mean_score
 
-
-
-def dcc_reshape(dcc_dir, time_bins=10):
-    """reshape dcc mat to 2d into time bins"""
-    for f in os.listdir(dcc_dir):
-        if f.endswith('.npy'):
-            print(f)
+def load_dynamic_corr(atlas, sess_types=['pain','rest'], time_bins=10, flatten=True):
+    """load dcc correlation and create labels"""
+    dcc_dir = os.path.join('..', 'output', atlas, 'dynamic_corr')
+    sess_ls = []
+    label_ls = []
+    for n, sess in enumerate(sess_types):
+        for f in os.listdir(dcc_dir):
+            if (f.endswith('.npy')) and (sess in f):
+                tmp = np.load(os.path.join(dcc_dir, f))
+                if time_bins>0: # collapse to bins
+                    bin_int = tmp.shape[1]/time_bins
+                    binned_tmp = []
+                    bc = 0
+                    for b in range(time_bins):
+                        start_idx = int(bc+b*bin_int)
+                        end_idx = int(bc+(b+1)*bin_int)
+                        binned_tmp.append(np.mean(tmp[:, start_idx:end_idx], axis=1))
+                        bc += 1
+                    tmp_rs = np.stack(binned_tmp)
+                else: 
+                    tmp_rs = tmp
+                if flatten==True: # collapse to col
+                    tmp_out = tmp_rs.reshape(1,tmp_rs.shape[0]*tmp_rs.shape[1])
+                else:
+                    tmp_out = tmp_rs
+                # print(tmp_out.shape)
+            else:
+                continue
+            sess_ls.append(tmp_out)
+            label_ls.append(n*np.ones(tmp_out.shape[0]))
+    sess_mat = np.concatenate(sess_ls)
+    label_mat = np.concatenate(label_ls)
+    # print(sess_mat.shape)
+    # print(label_mat.shape)
+    return sess_mat, label_mat
 
 
 def get_sample_cov_matrix(X):
@@ -140,14 +168,28 @@ def pca(X, n_components):
     return score, evectors, evals
 
 if __name__=="__main__":
+    # result = []
+    # combs = list(combinations(['pain','relief','rest'],2))
+    # for atl in ['yeo', 'msdl']:
+    #     for corr in ['correlation', 'partial', 'precision']:
+    #         for comb in combs:
+    #             for n in range(1,30):
+    #                 X,y = load_corr(atl, corr_type=corr, sess_types=comb)
+    #                 X_pca, _, _ = pca(X, n_components=n)
+    #                 accu = reg_cv(X_pca, y, svc=False)
+    #                 result.append(pd.DataFrame({'combination':[str(comb)], 'atlas':atl, 'correlation': corr, 'pca_num': n, 'accuracy':accu}))
+    # df = pd.concat(result)
+    # df.to_csv('./result/static_corr_cv.csv')
+
     result = []
     combs = list(combinations(['pain','relief','rest'],2))
-    for corr in ['correlation', 'partial', 'precision']:
+
+    for atl in ['msdl','yeo']:
         for comb in combs:
-            for n in range(1,30):
-                X,y = load_corr('yeo', corr_type=corr, sess_types=comb)
+            for n in range(1,20):
+                X,y = load_dynamic_corr(atl, sess_types=comb, time_bins=10, flatten=True)
                 X_pca, _, _ = pca(X, n_components=n)
                 accu = reg_cv(X_pca, y, svc=False)
-                result.append(pd.DataFrame({'combination':[str(comb)], 'correlation': corr, 'pca_num': n, 'accuracy':accu}))
+                result.append(pd.DataFrame({'combination':[str(comb)], 'pca_num': n, 'atlas':atl, 'accuracy':accu}))
     df = pd.concat(result)
-    df.to_csv('./result/static_corr_cv.csv')
+    df.to_csv('./result/dynamic_corr_cv.csv')
