@@ -36,6 +36,8 @@ def atlas_path(atlas_name):
         return '../atlas/Fan_et_al_atlas_r279_MNI_2mm.nii'
     elif atlas_name == 'yeo':
         return base_dir + 'nilearn_data/yeo_2011/Yeo_JNeurophysiol11_MNI152/Yeo2011_17Networks_MNI152_FreeSurferConformed1mm_LiberalMask.nii.gz'
+    elif atlas_name == 'schaefer':
+        return '../atlas/Schaefer2018_300Parcels_17Networks_order_FSLMNI152_2mm.nii.gz'
     else:
         raise ValueError('Atlas does not exist')
 
@@ -44,4 +46,5 @@ if __name__=="__main__":
     func_file = sys.argv[1]
     # extract_ts(func_file, atlas='msdl', output_dir='../output')
     # extract_ts(func_file, atlas='fan', output_dir='../output')
-    extract_ts(func_file, atlas='yeo', output_dir='../output')
+    # extract_ts(func_file, atlas='yeo', output_dir='../output')
+    extract_ts(func_file, atlas='schaefer', output_dir='../output')

@@ -7,6 +7,8 @@ import sys
 import numpy as np
 from itertools import combinations
 from nilearn.connectome import ConnectivityMeasure
+from DCC_GARCH.GARCH import GARCH, garch_loss_gen
+from DCC_GARCH.DCC import DCC, dcc_loss_gen, R_gen
 
 def load_ts(atlas_name, sess_type='pain'):
     """load time series files into list (pain/relief/rest type)"""
@@ -70,7 +72,6 @@ def dynamic_corr(func_file):
     print(f'dcc output saved to {output_file}')
     return dcc_sj
 
-
 def calc_dcc(t1, t2):
     """calcualte dcc between 2 time series"""
     from DCC_GARCH.GARCH import GARCH, garch_loss_gen
@@ -110,7 +111,55 @@ def calc_dcc(t1, t2):
     # plt.savefig('./test.png')
     return dcc_out
 
+def dynamic_corr_parallel(func_file, max_itr=10):
+    """calculate garch-dcc"""
+    sj_mat = np.load(os.path.join(func_file))
+    epsilon_mat = np.empty(sj_mat.shape)
+    # calculate epsilon for each roi ts
+    for i, col in enumerate(sj_mat.T):
+        ts_epsilon = garch_epsilon(col)
+        epsilon_mat[:,i] = ts_epsilon
+    # calculate dcc output
+    dcc_sj = dcc_calc(epsilon_mat, max_itr=max_itr)
+    # save correlation
+    tmp = func_file.split('/')
+    path_name = tmp[:-1]
+    file_name = tmp[-1].split('.')[0]
+    output_dir = os.path.join(*path_name)
+    save_dir = os.path.join(output_dir, 'dynamic_corr')
+    if not os.path.exists(save_dir):
+        os.mkdir(save_dir)
+    file_name = file_name+'_dcc.npy'
+    output_file = os.path.join(save_dir, file_name)
+    np.save(output_file, dcc_sj)
+    print(f'dcc output saved to {output_file}')
+    return dcc_sj
 
+def dcc_calc(epsilon_mat, max_itr=10):
+    """estimate DCC model given epsilon matrix of shape (t, n)"""
+    epsilon = epsilon_mat.T # (n,t)
+    dcc_model = DCC(max_itr=max_itr)
+    dcc_model.set_loss(dcc_loss_gen())
+    dcc_model.fit(epsilon)
+    # get DCC R (conditional correlation matrix)
+    ab = dcc_model.get_ab()
+    tr = epsilon
+    R_ls = R_gen(tr,ab)
+    R = np.array(R_ls)
+    # flatten Rt
+    K = R.shape[1]
+    Rt_triu = R[:,np.triu(np.ones((K,K)),1)>0].T
+    return Rt_triu
+
+def garch_epsilon(t1):
+    """calculate GARCH(1,1) epsilon of given ts vector (t,)"""
+    t1_model = GARCH(1,1)
+    t1_model.set_loss(garch_loss_gen(1,1))
+    t1_model.set_max_itr(1)
+    t1_model.fit(t1)
+    t1_sigma = t1_model.sigma(t1)
+    t1_epsilon = t1/t1_sigma
+    return t1_epsilon
 
 
 
@@ -123,4 +172,5 @@ if __name__=="__main__":
     
     # dynamic correlation
     func_file = sys.argv[1]
-    dynamic_corr(func_file)
+    # dynamic_corr(func_file)
+    dynamic_corr_parallel(func_file, max_itr=10)

@@ -141,7 +141,24 @@ def change_of_basis(X, W):
     Y = np.matmul(X, W)
     return Y
 
+def reconstruct_data(score, evectors, X_mean):
+    """
+    Reconstruct the data based on the components.
+    Args:
+    score (numpy array of floats)    : Score matrix
+    evectors (numpy array of floats) : Matrix of eigenvectors
+    X_mean (numpy array of floats)   : Vector corresponding to data mean
+    Returns:
+    (numpy array of floats)          : Matrix of reconstructed data
+    """
 
+    # Reconstruct the data from the score and eigenvectors
+    # Don't forget to add the mean!!
+    X_reconstructed =  np.matmul(score, evectors.T) + X_mean
+
+    return X_reconstructed
+
+    
 def pca(X, n_components):
     """
     Performs PCA on multivariate data.

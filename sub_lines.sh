@@ -10,10 +10,12 @@ done;
 # dcc
 # for f in ../output/yeo/*.npy; 
 # for f in ../output/msdl/*.npy; 
-for f in ../output/fan/*.npy; 
+# for f in ../output/fan/*.npy;
+for f in ../output/schaefer/*.npy;
     do 
     echo "calculating dcc from ${f}"; 
-    fsl_sub -T 400 -R 32 python correlations.py ${f}
+    fsl_sub -T 30 -R 32 python correlations.py ${f}
 done;
-# fsl_sub -T 20 -R 32 python correlations.py ../output/msdl/s01_rest_func.npy
+
+# classify
 fsl_sub -T 20 -R 32 python classify.py
