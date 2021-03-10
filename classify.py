@@ -47,14 +47,16 @@ def reg_cv(X, y, svc=False):
     print(f'mean accuracy={mean_score:.3f}')
     return mean_score
 
-def load_dynamic_corr(atlas, sess_types=['pain','rest'], time_bins=10, flatten=True):
+def load_dynamic_corr(atlas, sess_types=['pain','rest'], time_bins=10, flatten=True, exclude=None):
     """load dcc correlation and create labels"""
     dcc_dir = os.path.join('..', 'output', atlas, 'dynamic_corr')
     sess_ls = []
     label_ls = []
     for n, sess in enumerate(sess_types):
         for f in os.listdir(dcc_dir):
-            if (f.endswith('.npy')) and (sess in f):
+            if (f.endswith('.npy')) and (sess in f) and (str(exclude) not in f):
+                print(f)
+            # if (f.endswith('.npy')) and (sess in f) and ('12' in f):
                 tmp = np.load(os.path.join(dcc_dir, f))
                 if time_bins>0: # collapse to bins
                     bin_int = tmp.shape[1]/time_bins
@@ -63,9 +65,10 @@ def load_dynamic_corr(atlas, sess_types=['pain','rest'], time_bins=10, flatten=T
                     for b in range(time_bins):
                         start_idx = int(bc+b*bin_int)
                         end_idx = int(bc+(b+1)*bin_int)
-                        binned_tmp.append(np.mean(tmp[:, start_idx:end_idx], axis=1))
+                        binned_tmp.append(np.nanmean(tmp[:, start_idx:end_idx], axis=1))
                         bc += 1
                     tmp_rs = np.stack(binned_tmp)
+                    # print(np.isnan(tmp_rs))
                 else: 
                     tmp_rs = tmp
                 if flatten==True: # collapse to col
@@ -185,6 +188,7 @@ def pca(X, n_components):
     return score, evectors, evals
 
 if __name__=="__main__":
+    ## static corr
     # result = []
     # combs = list(combinations(['pain','relief','rest'],2))
     # for atl in ['yeo', 'msdl']:
@@ -198,15 +202,27 @@ if __name__=="__main__":
     # df = pd.concat(result)
     # df.to_csv('./result/static_corr_cv.csv')
 
+    ## dynamic corr
+    from sklearn.decomposition import PCA
     result = []
     combs = list(combinations(['pain','relief','rest'],2))
 
-    for atl in ['msdl','yeo']:
+    for atl in ['msdl','yeo','schaefer','fan']: #'schaefer','yeo','msdl',
+        print(atl)
         for comb in combs:
+            print(comb)
+            X,y = load_dynamic_corr(atl, sess_types=comb, time_bins=10, flatten=True, exclude='12') 
+            # Fan atlas s12_pain_func dcc is nan, not sure why
             for n in range(1,20):
-                X,y = load_dynamic_corr(atl, sess_types=comb, time_bins=10, flatten=True)
-                X_pca, _, _ = pca(X, n_components=n)
+                ## using first principal
+                # X_pca, _, _ = pca(X, n_components=n) # too big 
+                # print(X_pca[:3])
+                ## using sklearn
+                pca_skl = PCA(n_components=n)
+                pca_skl.fit(X)
+                X_pca = pca_skl.transform(X)
+                # pcr with cv
                 accu = reg_cv(X_pca, y, svc=False)
                 result.append(pd.DataFrame({'combination':[str(comb)], 'pca_num': n, 'atlas':atl, 'accuracy':accu}))
     df = pd.concat(result)
-    df.to_csv('./result/dynamic_corr_cv.csv')
+    df.to_csv('./result/dynamic_corr_cv.csv',index=False)
